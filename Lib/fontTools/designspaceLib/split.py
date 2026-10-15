@@ -164,6 +164,10 @@ def splitVariableFonts(
     designspace. This can be used to compile all the variable fonts from a
     format 5 designspace using tools that can only deal with 1 VF at a time.
 
+    The resulting documents retain their single variable-font descriptor,
+    including its output filename and lib. Use :func:`convert5to4` when a
+    format 4 document without variable-font descriptors is required.
+
     Args:
       - ``makeNames``: Whether to compute the instance family and style
         names using the STAT data.
@@ -188,6 +192,18 @@ def splitVariableFonts(
             expandLocations=expandLocations,
             makeInstanceFilename=makeInstanceFilename,
         )
+        vfDoc.addVariableFont(
+            VariableFontDescriptor(
+                name=vf.name,
+                filename=vf.filename,
+                axisSubsets=[
+                    subset
+                    for subset in vf.axisSubsets
+                    if isinstance(vfUserRegion[subset.name], Range)
+                ],
+                lib=vf.lib,
+            )
+        )
         vfDoc.lib = {**vfDoc.lib, **vf.lib}
         yield vf.name, vfDoc
 
@@ -204,6 +220,7 @@ def convert5to4(
     vfs = {}
     for _location, subDoc in splitInterpolable(doc):
         for vfName, vfDoc in splitVariableFonts(subDoc):
+            vfDoc.variableFonts = []
             vfDoc.formatVersion = "4.1"
             vfs[vfName] = vfDoc
     return vfs

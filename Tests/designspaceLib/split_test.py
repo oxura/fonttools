@@ -22,6 +22,41 @@ from .fixtures import datadir
 
 UPDATE_REFERENCE_OUT_FILES_INSTEAD_OF_TESTING = False
 
+def test_split_variable_font_metadata_roundtrip():
+    doc = DesignSpaceDocument()
+    doc.addAxisDescriptor(
+        name="Weight", tag="wght", minimum=100, default=400, maximum=900
+    )
+    for name, minimum, maximum in (("Light", 100, 400), ("Heavy", 400, 900)):
+        doc.addVariableFontDescriptor(
+            name=name,
+            filename=f"Custom-{name}.ttf",
+            axisSubsets=[
+                RangeAxisSubsetDescriptor(
+                    name="Weight", userMinimum=minimum,
+                    userDefault=400, userMaximum=maximum
+                )
+            ],
+            lib={"com.example.style": name},
+        )
+    for name, subdoc in splitVariableFonts(doc):
+        restored = DesignSpaceDocument.fromstring(subdoc.tostring())
+        assert len(restored.variableFonts) == 1
+        vf = restored.variableFonts[0]
+        assert vf.name == name
+        assert vf.filename == f"Custom-{name}.ttf"
+        assert vf.lib == {"com.example.style": name}
+        assert len(vf.axisSubsets) == 1
+        assert vf.axisSubsets[0].userMinimum == restored.axes[0].minimum
+        assert vf.axisSubsets[0].userMaximum == restored.axes[0].maximum
+        assert len(list(splitVariableFonts(restored))) == 1
+
+    for subdoc in convert5to4(doc).values():
+        restored = DesignSpaceDocument.fromstring(subdoc.tostring())
+        assert restored.formatVersion == "4.1"
+        assert restored.variableFonts == []
+
+
 
 @pytest.mark.parametrize(
     "test_ds,expected_interpolable_spaces",
