@@ -1,8 +1,40 @@
+from io import BytesIO
+from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables import otTables
 from fontTools.otlLib.builder import buildStatTable
 from fontTools.varLib import instancer
 
 import pytest
+
+
+@pytest.mark.parametrize(
+    "weight, family, subfamily",
+    [
+        (400, "Test Variable Font", None),
+        (900, "Test Variable Font Black", "Black"),
+    ],
+)
+def test_instantiate_with_stat_version_1_0(varfont, weight, family, subfamily):
+    stat = varfont["STAT"].table
+    stat.Version = 0x00010000
+    del stat.ElidedFallbackNameID
+    data = BytesIO()
+    varfont.save(data)
+    data.seek(0)
+    font = TTFont(data)
+    instance = instancer.instantiateVariableFont(
+        font, {"wght": weight, "wdth": 100}, updateFontNames=True
+    )
+    data = BytesIO()
+    instance.save(data)
+    data.seek(0)
+    restored = TTFont(data)
+    assert restored["name"].getDebugName(1) == family
+    assert restored["name"].getDebugName(2) == "Regular"
+    assert restored["name"].getDebugName(17) == subfamily
+    assert restored["OS/2"].usWeightClass == weight
+    assert "fvar" not in restored
+    assert restored["STAT"].table.Version == 0x00010000
 
 
 def test_pruningUnusedNames(varfont):

@@ -98,6 +98,9 @@ def updateNameTable(varfont, axisLimits):
     NameID 16 Typographic Family name: None --> "Open Sans"
     NameID 17 Typographic Subfamily name: None --> "Condensed"
 
+    For STAT version 1.0, which has no ElidedFallbackNameID field, name ID 2
+    supplies the fallback subfamily name.
+
     References:
     https://docs.microsoft.com/en-us/typography/opentype/spec/stat
     https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-ids
@@ -206,7 +209,7 @@ def _updateNameRecords(varfont, axisValues):
     axisValueNameIDs = [a.ValueNameID for a in axisValues]
     ribbiNameIDs = [n for n in axisValueNameIDs if _isRibbi(nametable, n)]
     nonRibbiNameIDs = [n for n in axisValueNameIDs if n not in ribbiNameIDs]
-    elidedNameID = stat.ElidedFallbackNameID
+    elidedNameID = 2 if stat.Version < 0x00010001 else stat.ElidedFallbackNameID
     elidedNameIsRibbi = _isRibbi(nametable, elidedNameID)
 
     getName = nametable.getName
