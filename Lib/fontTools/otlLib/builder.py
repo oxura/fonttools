@@ -2901,7 +2901,11 @@ def buildMarkGlyphSetsDef(markSets, glyphMap):
 
 
 class ClassDefBuilder(object):
-    """Helper for building ClassDef tables."""
+    """Helper for building ClassDef tables.
+
+    Repeated occurrences of a glyph within one class are allowed; membership
+    in different classes remains an error.
+    """
 
     def __init__(self, useClass0):
         self.classes_ = set()
@@ -2926,7 +2930,7 @@ class ClassDefBuilder(object):
         if glyphs in self.classes_:
             return
         self.classes_.add(glyphs)
-        for glyph in glyphs:
+        for glyph in set(glyphs):
             if glyph in self.glyphs_:
                 raise OpenTypeLibError(
                     f"Glyph {glyph} is already present in class.", None

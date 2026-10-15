@@ -5,6 +5,7 @@ from fontTools.misc.testTools import getXML
 from fontTools.otlLib import builder, error
 from fontTools import ttLib
 from fontTools.ttLib.tables import otTables
+from fontTools.ttLib.tables.otBase import OTTableReader, OTTableWriter
 import pytest
 
 
@@ -14,6 +15,30 @@ class BuilderTest(object):
         "A B C a b c grave acute cedilla f_f_i f_i c_t"
     ).split()
     GLYPHMAP = {name: num for num, name in enumerate(GLYPHS)}
+
+    def test_buildPairPosClassesSubtable_repeated_glyphs(self):
+        pairs = {
+            (("A", "A", "B"), ("C", "C")): (
+                builder.buildValue({"XAdvance": -30}),
+                None,
+            )
+        }
+        subtable = builder.buildPairPosClassesSubtable(pairs, self.GLYPHMAP)
+        font = ttLib.TTFont()
+        font.setGlyphOrder(self.GLYPHS)
+        writer = OTTableWriter()
+        builder.buildLookup([subtable]).compile(writer, font)
+        restoredLookup = otTables.Lookup()
+        restoredLookup.decompile(
+            OTTableReader(writer.getAllData(), tableTag="GPOS"), font
+        )
+        restored = restoredLookup.SubTable[0]
+        assert restored.Coverage.glyphs == ["A", "B"]
+        for first in ("A", "B"):
+            c1 = restored.ClassDef1.classDefs.get(first, 0)
+            c2 = restored.ClassDef2.classDefs["C"]
+            value = restored.Class1Record[c1].Class2Record[c2].Value1
+            assert value.XAdvance == -30
 
     ANCHOR1 = builder.buildAnchor(11, -11)
     ANCHOR2 = builder.buildAnchor(22, -22)
@@ -1140,6 +1165,17 @@ class ClassDefBuilderTest(object):
         assert not b.canAdd({"a", "b", "c", "d", "e", "f"})
         assert not b.canAdd({"d", "e", "f"})
         assert not b.canAdd({"f"})
+
+    def test_canAdd_repeated_glyphs(self):
+        b = builder.ClassDefBuilder(useClass0=False)
+        glyphs = ("a", "b", "a")
+        assert b.canAdd(glyphs)
+        b.add(glyphs)
+        assert b.build().classDefs == {"a": 1, "b": 1}
+        assert b.canAdd(glyphs)
+        b.add(glyphs)
+        assert b.build().classDefs == {"a": 1, "b": 1}
+        assert not b.canAdd(("a", "c"))
 
     def test_add_exception(self):
         b = builder.ClassDefBuilder(useClass0=True)
