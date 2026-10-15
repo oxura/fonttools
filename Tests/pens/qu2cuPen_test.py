@@ -19,6 +19,8 @@ from fontTools.pens.qu2cuPen import Qu2CuPen
 from fontTools.pens.recordingPen import RecordingPen
 from textwrap import dedent
 import pytest
+from fontTools.pens.areaPen import AreaPen
+from fontTools.pens.boundsPen import BoundsPen
 
 try:
     from .utils import CUBIC_GLYPHS, QUAD_GLYPHS
@@ -105,6 +107,51 @@ class _TestPenMixin(object):
                 "pen.addComponent('a', (1, 2, 3, 4, 5.0, 6.0))",
             ],
         )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "points",
+    [
+        ((0, 100), (100, 100), (100, 0), (0, 0)),
+        ((10, 20),),
+        ((-31, 15), (42, 117), (210, -93)),
+    ],
+)
+def test_all_offcurve_contour(points, reverse):
+    source = RecordingPen()
+    source.qCurveTo(*points, None)
+    source.closePath()
+    output = RecordingPen()
+    source.replay(
+        Qu2CuPen(output, 0.001, all_cubic=True, reverse_direction=reverse)
+    )
+    assert output.value[0] == (
+        "moveTo",
+        (((points[-1][0] + points[0][0]) / 2,
+          (points[-1][1] + points[0][1]) / 2),),
+    )
+    assert output.value[-1] == ("closePath", ())
+    assert all(op != "qCurveTo" for op, _ in output.value)
+    for penType in (BoundsPen, AreaPen):
+        original, converted = penType(None), penType(None)
+        source.replay(original)
+        output.replay(converted)
+        if penType is BoundsPen:
+            assert converted.bounds == pytest.approx(original.bounds, abs=0.001)
+        else:
+            assert converted.value == pytest.approx(
+                original.value * (-1 if reverse else 1), abs=0.1
+            )
+
+
+def test_all_offcurve_contour_quadratic_passthrough():
+    source = RecordingPen()
+    source.qCurveTo((0, 100), (100, 100), (100, 0), (0, 0), None)
+    source.closePath()
+    output = RecordingPen()
+    source.replay(Qu2CuPen(output, 1))
+    assert output.value == source.value
 
 
 class TestQu2CuPen(unittest.TestCase, _TestPenMixin):

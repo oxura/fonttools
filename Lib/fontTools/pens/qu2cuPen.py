@@ -23,6 +23,9 @@ class Qu2CuPen(ContourFilterPen):
     """A filter pen to convert quadratic bezier splines to cubic curves
     using the FontTools SegmentPen protocol.
 
+    Contours containing only quadratic off-curve points are supported. When
+    converting them to cubics, their implicit starting point is made explicit.
+
     Args:
 
         other_pen: another SegmentPen used to draw the transformed outline.
@@ -69,9 +72,13 @@ class Qu2CuPen(ContourFilterPen):
                 self.all_cubic or (len(args) > 2 and args[-1] is not None)
             ):
                 if args[-1] is None:
-                    raise NotImplementedError(
-                        "oncurve-less contours with all_cubic not implemented"
+                    last, first = args[-2], args[0]
+                    currentPt = (
+                        (last[0] + first[0]) * 0.5,
+                        (last[1] + first[1]) * 0.5,
                     )
+                    newContour.append(("moveTo", (currentPt,)))
+                    args = args[:-1] + (currentPt,)
                 quadratics.append((currentPt,) + args)
             else:
                 if quadratics:
